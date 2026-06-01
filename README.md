@@ -6,6 +6,27 @@ This project develops an end-to-end credit risk scoring solution for Bati Bank u
 
 ---
 
+## Dataset
+
+This project uses the Xente Challenge dataset from Kaggle.
+
+Source:
+https://www.kaggle.com/competitions/xente-fraud-detection
+
+The dataset contains transaction-level information collected from the Xente eCommerce platform, including customer identifiers, account information, transaction amounts, product details, timestamps, pricing strategies, and fraud indicators.
+
+Access Notes:
+
+- The dataset must be downloaded separately from Kaggle.
+- Raw datasets are excluded from version control using `.gitignore`.
+- Users reproducing this work must place the dataset in:
+
+```text
+data/raw/data.csv
+```
+
+---
+
 ## Project Structure
 
 ```text
