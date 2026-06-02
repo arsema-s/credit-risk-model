@@ -7,8 +7,8 @@ import pandas as pd
 from src.data_processing import (
     get_dataset_shape,
     get_duplicate_count,
-    create_aggregate_features,
-    extract_time_features
+    calculate_rfm,
+    create_high_risk_target
 )
 
 def test_dataset_shape():
@@ -40,43 +40,68 @@ def test_duplicate_count():
 
     assert get_duplicate_count(df) == 1
 
-def test_create_aggregate_features():
+def test_calculate_rfm():
 
     df = pd.DataFrame(
         {
             "CustomerId": [
-                "C1",
-                "C1",
-                "C2"
+                "C1"
+            ],
+            "TransactionId": [
+                "T1"
             ],
             "Amount": [
-                100,
-                200,
-                50
-            ]
-        }
-    )
-
-    result = create_aggregate_features(df)
-
-    assert (
-        "TotalTransactionAmount"
-        in result.columns
-    )
-
-def test_extract_time_features():
-
-    df = pd.DataFrame(
-        {
+                100
+            ],
             "TransactionStartTime": [
-                "2018-01-01T12:00:00Z"
+                "2018-01-01"
             ]
         }
     )
 
-    result = extract_time_features(df)
+    result = calculate_rfm(df)
+
+    assert "Recency" in result.columns
+
+def test_high_risk_column():
+
+    clustered = pd.DataFrame(
+        {
+            "CustomerId": [
+                "A",
+                "B",
+                "C"
+            ],
+            "Recency": [
+                100,
+                10,
+                20
+            ],
+            "Frequency": [
+                1,
+                10,
+                8
+            ],
+            "Monetary": [
+                50,
+                1000,
+                900
+            ],
+            "Cluster": [
+                0,
+                1,
+                2
+            ]
+        }
+    )
+
+    result = (
+        create_high_risk_target(
+            clustered
+        )
+    )
 
     assert (
-        "TransactionHour"
+        "is_high_risk"
         in result.columns
     )

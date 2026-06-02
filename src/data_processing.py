@@ -6,6 +6,12 @@ data loading and exploratory data analysis.
 """
 
 import pandas as pd
+import numpy as np
+from sklearn.preprocessing import (
+    OneHotEncoder,
+    StandardScaler
+)
+from sklearn.cluster import KMeans
 
 import numpy as np
 
@@ -101,43 +107,11 @@ def validate_columns(df, required_columns):
 
     print("Column validation passed.")
 
-def create_aggregate_features(df):
+def calculate_rfm(df):
     """
-    Create customer-level aggregate features.
-    """
-
-    agg_df = (
-        df.groupby("CustomerId")
-        .agg(
-            TotalTransactionAmount=("Amount", "sum"),
-            AverageTransactionAmount=("Amount", "mean"),
-            TransactionCount=("Amount", "count"),
-            StdTransactionAmount=("Amount", "std")
-        )
-        .reset_index()
-    )
-
-    return agg_df
-
-def merge_engineered_features(df):
-    """
-    Merge aggregate features
-    back to transaction dataset.
-    """
-
-    agg_df = create_aggregate_features(df)
-
-    df = df.merge(
-        agg_df,
-        on="CustomerId",
-        how="left"
-    )
-
-    return df
-
-def extract_time_features(df):
-    """
-    Extract time-based features.
+    Calculate Recency,
+    Frequency and Monetary
+    metrics for each customer.
     """
 
     df = df.copy()
@@ -146,81 +120,181 @@ def extract_time_features(df):
         df["TransactionStartTime"]
     )
 
-    df["TransactionHour"] = (
+    snapshot_date = (
         df["TransactionStartTime"]
-        .dt.hour
+        .max()
+        + pd.Timedelta(days=1)
     )
 
-    df["TransactionDay"] = (
-        df["TransactionStartTime"]
-        .dt.day
+    rfm = (
+        df.groupby("CustomerId")
+        .agg(
+            Recency=(
+                "TransactionStartTime",
+                lambda x: (
+                    snapshot_date - x.max()
+                ).days
+            ),
+            Frequency=(
+                "TransactionId",
+                "count"
+            ),
+            Monetary=(
+                "Amount",
+                "sum"
+            )
+        )
+        .reset_index()
     )
 
-    df["TransactionMonth"] = (
-        df["TransactionStartTime"]
-        .dt.month
+    return rfm
+
+def cluster_customers(rfm_df):
+    """
+    Perform KMeans clustering
+    on RFM metrics.
+    """
+
+    rfm_df = rfm_df.copy()
+
+    scaler = StandardScaler()
+
+    scaled_features = scaler.fit_transform(
+        rfm_df[
+            [
+                "Recency",
+                "Frequency",
+                "Monetary"
+            ]
+        ]
     )
 
-    df["TransactionYear"] = (
-        df["TransactionStartTime"]
-        .dt.year
+    kmeans = KMeans(
+        n_clusters=3,
+        random_state=42
     )
 
-    return df
+    rfm_df["Cluster"] = (
+        kmeans.fit_predict(
+            scaled_features
+        )
+    )
 
-def build_feature_pipeline(
-    numerical_columns,
-    categorical_columns
+    return rfm_df
+
+def identify_high_risk_cluster(
+    clustered_rfm
 ):
     """
-    Build preprocessing pipeline.
+    Identify high-risk cluster
+    based on RFM behavior.
     """
 
-    numeric_transformer = Pipeline(
-        steps=[
-            (
-                "imputer",
-                SimpleImputer(
-                    strategy="median"
-                )
-            ),
-            (
-                "scaler",
-                StandardScaler()
-            )
+    cluster_summary = (
+        clustered_rfm
+        .groupby("Cluster")
+        [
+            [
+                "Recency",
+                "Frequency",
+                "Monetary"
+            ]
         ]
+        .mean()
     )
 
-    categorical_transformer = Pipeline(
-        steps=[
-            (
-                "imputer",
-                SimpleImputer(
-                    strategy="most_frequent"
-                )
-            ),
-            (
-                "encoder",
-                OneHotEncoder(
-                    handle_unknown="ignore"
-                )
-            )
-        ]
+    scaler = StandardScaler()
+
+    scaled = pd.DataFrame(
+        scaler.fit_transform(
+            cluster_summary
+        ),
+        columns=cluster_summary.columns,
+        index=cluster_summary.index
     )
 
-    preprocessor = ColumnTransformer(
-        transformers=[
-            (
-                "num",
-                numeric_transformer,
-                numerical_columns
-            ),
-            (
-                "cat",
-                categorical_transformer,
-                categorical_columns
-            )
-        ]
+    scaled["RiskScore"] = (
+        scaled["Recency"]
+        -
+        scaled["Frequency"]
+        -
+        scaled["Monetary"]
     )
 
-    return preprocessor
+    high_risk_cluster = (
+        scaled["RiskScore"]
+        .idxmax()
+    )
+
+    return high_risk_cluster
+
+def create_high_risk_target(
+    clustered_rfm
+):
+    """
+    Create binary
+    is_high_risk target.
+    """
+
+    clustered_rfm = (
+        clustered_rfm.copy()
+    )
+
+    high_risk_cluster = (
+        identify_high_risk_cluster(
+            clustered_rfm
+        )
+    )
+
+    clustered_rfm[
+        "is_high_risk"
+    ] = np.where(
+        clustered_rfm["Cluster"]
+        ==
+        high_risk_cluster,
+        1,
+        0
+    )
+
+    return clustered_rfm
+
+def merge_high_risk_target(
+    original_df
+):
+    """
+    Merge high risk target
+    back into transaction
+    dataset.
+    """
+
+    rfm = calculate_rfm(
+        original_df
+    )
+
+    clustered = (
+        cluster_customers(
+            rfm
+        )
+    )
+
+    target_df = (
+        create_high_risk_target(
+            clustered
+        )
+    )
+
+    merged_df = (
+        original_df.merge(
+            target_df[
+                [
+                    "CustomerId",
+                    "is_high_risk"
+                ]
+            ],
+            on="CustomerId",
+            how="left"
+        )
+    )
+
+    return merged_df
+
