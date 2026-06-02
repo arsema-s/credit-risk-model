@@ -11,7 +11,6 @@ from src.data_processing import (
     create_high_risk_target
 )
 
-
 def test_dataset_shape():
     """
     Test shape function.
