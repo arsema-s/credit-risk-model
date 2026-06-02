@@ -173,9 +173,8 @@ def identify_high_risk_cluster(
     clustered_rfm
 ):
     """
-    Identify the cluster
-    with the weakest customer
-    engagement profile.
+    Identify high-risk cluster
+    based on RFM behavior.
     """
 
     cluster_summary = (
@@ -191,18 +190,27 @@ def identify_high_risk_cluster(
         .mean()
     )
 
-    cluster_summary["RiskScore"] = (
-        cluster_summary["Recency"]
+    scaler = StandardScaler()
+
+    scaled = pd.DataFrame(
+        scaler.fit_transform(
+            cluster_summary
+        ),
+        columns=cluster_summary.columns,
+        index=cluster_summary.index
+    )
+
+    scaled["RiskScore"] = (
+        scaled["Recency"]
         -
-        cluster_summary["Frequency"]
+        scaled["Frequency"]
         -
-        cluster_summary["Monetary"]
+        scaled["Monetary"]
     )
 
     high_risk_cluster = (
-        cluster_summary[
-            "RiskScore"
-        ].idxmax()
+        scaled["RiskScore"]
+        .idxmax()
     )
 
     return high_risk_cluster
