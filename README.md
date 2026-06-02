@@ -2,55 +2,304 @@
 
 ## Project Overview
 
-This project develops an end-to-end credit risk scoring solution for Bati Bank using transaction data from the Xente eCommerce platform.
+This project was completed as part of the Bati Bank Credit Scoring Challenge.
+
+Bati Bank aims to introduce a Buy Now, Pay Later (BNPL) service by leveraging transaction data from Xente's mobile money platform. Since traditional credit bureau information is unavailable for many customers, alternative behavioral data must be used to estimate customer credit risk.
+
+The objective of this project is to build an end-to-end machine learning system that:
+
+* Creates a proxy credit risk target from transaction behavior
+* Engineers customer-level features from transaction history
+* Trains and evaluates credit risk prediction models
+* Tracks experiments using MLflow
+* Deploys the selected model through a FastAPI application
+* Provides containerization support through Docker
+* Implements CI/CD through GitHub Actions
+
+---
+
+## Business Context
+
+Financial institutions must comply with Basel II principles, which require risk models to be interpretable, measurable, and auditable.
+
+Because a true loan-default label is unavailable, this project creates a proxy target variable using customer behavioral segmentation based on:
+
+* Recency
+* Frequency
+* Monetary value (RFM)
+
+Customers exhibiting riskier transaction behavior are identified through clustering and assigned a high-risk label.
+
+The resulting model can support:
+
+* Loan approval decisions
+* Credit limit assignment
+* Risk-based pricing
+* Customer monitoring
 
 ---
 
 ## Dataset
 
-This project uses the Xente Challenge dataset from Kaggle.
+This project uses the Xente transaction dataset provided for the Bati Bank Credit Scoring Challenge.
 
-Source:
-https://www.kaggle.com/competitions/xente-fraud-detection
+The dataset contains:
 
-The dataset contains transaction-level information collected from the Xente eCommerce platform, including customer identifiers, account information, transaction amounts, product details, timestamps, pricing strategies, and fraud indicators.
+* Transaction identifiers
+* Customer identifiers
+* Account information
+* Product categories
+* Channel information
+* Transaction timestamps
+* Transaction amounts
+* Fraud indicators
 
-Access Notes:
+The data represents mobile money activity and is used to derive customer behavioral profiles.
 
-- The dataset must be downloaded separately from Kaggle.
-- Raw datasets are excluded from version control using `.gitignore`.
-- Users reproducing this work must place the dataset in:
-
-```text
-data/raw/data.csv
-```
+Access to the dataset is provided through the challenge platform and may require registration.
 
 ---
 
-## Project Structure
+## Repository Structure
 
 ```text
 credit-risk-model/
-├── .github/
+
 ├── data/
+│   └── processed/
+│
+├── models/
+│
 ├── notebooks/
+│   ├── eda.ipynb
+│   ├── feature_engineering.ipynb
+│   ├── proxy_target_engineering.ipynb
+│   └── model_training.ipynb
+│
 ├── src/
+│   ├── data_processing.py
+│   ├── train.py
+│   ├── predict.py
+│   └── api/
+│       ├── main.py
+│       └── pydantic_models.py
+│
 ├── tests/
-├── README.md
+│
+├── Dockerfile
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## Credit Scoring Business Understanding
+## Task 1: Business Understanding
 
-### How does the Basel II Accord's emphasis on risk measurement influence the need for an interpretable and well-documented model?
+Completed activities:
 
-Basel II requires financial institutions to use transparent and well-documented risk assessment methods. Since lending decisions directly affect capital allocation and regulatory compliance, models must be explainable and auditable. Interpretable models allow regulators, auditors, and risk managers to understand how predictions are generated and ensure decisions can be justified.
+* Defined business objective
+* Evaluated Basel II implications
+* Assessed proxy target approaches
+* Established repository structure
+* Configured Git workflow
 
-### Without a direct default label, why is a proxy variable necessary, and what business risks does proxy-based prediction introduce?
+---
 
-The dataset does not contain actual loan default outcomes. Therefore, a proxy variable must be created to approximate credit risk. Behavioral indicators such as Recency, Frequency, and Monetary value can be used to identify potentially risky customers. However, proxy targets are assumptions rather than true defaults, creating risks of misclassification, biased decisions, and reduced model reliability.
+## Task 2: Exploratory Data Analysis
 
-### What are the key trade-offs between a simple interpretable model and a high-performance model?
+Completed analyses:
 
-Logistic Regression combined with Weight of Evidence provides strong interpretability and easier regulatory compliance. Gradient Boosting models often achieve higher predictive performance but are more difficult to explain and audit. Financial institutions must balance predictive accuracy with transparency and governance requirements.
+* Dataset overview
+* Data type inspection
+* Summary statistics
+* Missing value analysis
+* Duplicate analysis
+* Outlier detection
+* Numerical feature distributions
+* Categorical feature distributions
+* Correlation analysis
+
+Key findings:
+
+* Transaction amount contains significant outliers
+* Several categorical variables have high cardinality
+* Missing values are limited
+* Transaction behavior varies significantly between customers
+
+---
+
+## Task 3: Feature Engineering
+
+Implemented features:
+
+### Aggregate Features
+
+* TotalTransactionAmount
+* AverageTransactionAmount
+* TransactionCount
+* StdTransactionAmount
+
+### Time Features
+
+* TransactionHour
+* TransactionDay
+* TransactionMonth
+* TransactionYear
+
+### Transformations
+
+* Missing-value imputation
+* One-hot encoding
+* Feature scaling
+
+---
+
+## Task 4: Proxy Target Engineering
+
+An RFM framework was used to generate a proxy credit risk target.
+
+### RFM Components
+
+Recency:
+
+* Days since last transaction
+
+Frequency:
+
+* Number of transactions
+
+Monetary:
+
+* Total transaction amount
+
+### Clustering
+
+K-Means clustering was applied to customer RFM profiles.
+
+Customers belonging to the riskiest cluster were labeled:
+
+```text
+is_high_risk = 1
+```
+
+All other customers were labeled:
+
+```text
+is_high_risk = 0
+```
+
+This generated the target variable used for model training.
+
+---
+
+## Task 5: Model Training and Experiment Tracking
+
+Models evaluated:
+
+### Logistic Regression
+
+* Accuracy: 0.6729
+* Precision: 0.5872
+* Recall: 0.4825
+* F1 Score: 0.5298
+* ROC-AUC: 0.7284
+
+### Random Forest
+
+* Accuracy: 0.6943
+* Precision: 0.5882
+* Recall: 0.6643
+* F1 Score: 0.6240
+* ROC-AUC: 0.7548
+
+### Selected Model
+
+Random Forest achieved the highest ROC-AUC and strongest recall performance and was selected as the final model.
+
+MLflow was used to:
+
+* Track experiments
+* Log metrics
+* Store model artifacts
+* Compare model performance
+
+---
+
+## Task 6: Deployment
+
+### FastAPI
+
+Run locally:
+
+```bash
+uvicorn src.api.main:app --reload
+```
+
+Swagger UI:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+### Example Request
+
+```json
+{
+  "TotalTransactionAmount": 50000,
+  "AverageTransactionAmount": 2500,
+  "TransactionCount": 20,
+  "StdTransactionAmount": 1000,
+  "FraudResult": 0
+}
+```
+
+### Example Response
+
+```json
+{
+  "prediction": 0,
+  "probability": 0.42
+}
+```
+
+---
+
+## Docker
+
+Build image:
+
+```bash
+docker build -t credit-risk-api .
+```
+
+Run container:
+
+```bash
+docker run -p 8000:8000 credit-risk-api
+```
+
+---
+
+## CI/CD
+
+GitHub Actions automatically:
+
+* Installs dependencies
+* Executes tests
+* Validates pull requests
+
+Workflow file:
+
+```text
+.github/workflows/ci.yml
+```
+
+---
+
+## Author
+
+Arsema Esayas
+
+Data Science & Credit Risk Modeling Project
+
+Bati Bank Credit Scoring Challenge
