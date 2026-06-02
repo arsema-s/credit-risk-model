@@ -7,6 +7,19 @@ data loading and exploratory data analysis.
 
 import pandas as pd
 
+import numpy as np
+
+from sklearn.compose import ColumnTransformer
+
+from sklearn.impute import SimpleImputer
+
+from sklearn.pipeline import Pipeline
+
+from sklearn.preprocessing import (
+    OneHotEncoder,
+    StandardScaler
+)
+
 
 def load_data(file_path: str) -> pd.DataFrame:
     """
@@ -87,3 +100,127 @@ def validate_columns(df, required_columns):
         )
 
     print("Column validation passed.")
+
+def create_aggregate_features(df):
+    """
+    Create customer-level aggregate features.
+    """
+
+    agg_df = (
+        df.groupby("CustomerId")
+        .agg(
+            TotalTransactionAmount=("Amount", "sum"),
+            AverageTransactionAmount=("Amount", "mean"),
+            TransactionCount=("Amount", "count"),
+            StdTransactionAmount=("Amount", "std")
+        )
+        .reset_index()
+    )
+
+    return agg_df
+
+def merge_engineered_features(df):
+    """
+    Merge aggregate features
+    back to transaction dataset.
+    """
+
+    agg_df = create_aggregate_features(df)
+
+    df = df.merge(
+        agg_df,
+        on="CustomerId",
+        how="left"
+    )
+
+    return df
+
+def extract_time_features(df):
+    """
+    Extract time-based features.
+    """
+
+    df = df.copy()
+
+    df["TransactionStartTime"] = pd.to_datetime(
+        df["TransactionStartTime"]
+    )
+
+    df["TransactionHour"] = (
+        df["TransactionStartTime"]
+        .dt.hour
+    )
+
+    df["TransactionDay"] = (
+        df["TransactionStartTime"]
+        .dt.day
+    )
+
+    df["TransactionMonth"] = (
+        df["TransactionStartTime"]
+        .dt.month
+    )
+
+    df["TransactionYear"] = (
+        df["TransactionStartTime"]
+        .dt.year
+    )
+
+    return df
+
+def build_feature_pipeline(
+    numerical_columns,
+    categorical_columns
+):
+    """
+    Build preprocessing pipeline.
+    """
+
+    numeric_transformer = Pipeline(
+        steps=[
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="median"
+                )
+            ),
+            (
+                "scaler",
+                StandardScaler()
+            )
+        ]
+    )
+
+    categorical_transformer = Pipeline(
+        steps=[
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="most_frequent"
+                )
+            ),
+            (
+                "encoder",
+                OneHotEncoder(
+                    handle_unknown="ignore"
+                )
+            )
+        ]
+    )
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "num",
+                numeric_transformer,
+                numerical_columns
+            ),
+            (
+                "cat",
+                categorical_transformer,
+                categorical_columns
+            )
+        ]
+    )
+
+    return preprocessor
